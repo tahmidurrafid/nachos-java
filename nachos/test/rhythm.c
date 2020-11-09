@@ -10,7 +10,7 @@ int main()
     int sum = 0, i = 0;
     for(i = 0; i < 10; i++){
         sum += i;
-        read(10, &ch, 1);
+        read(0, &ch, 1);
         printf("%c", ch);        
     }
     // printf("%s", s);

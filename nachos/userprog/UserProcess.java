@@ -22,11 +22,15 @@ public class UserProcess {
     /**
      * Allocate a new process.
      */
+    OpenFile stdIn, stdOut;
+
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
         pageTable = new TranslationEntry[numPhysPages];
         for (int i = 0; i < numPhysPages; i++)
             pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+        stdIn = UserKernel.console.openForReading();
+        stdOut = UserKernel.console.openForWriting();
     }
 
     /**
@@ -336,6 +340,24 @@ public class UserProcess {
         return 0;
     }
 
+    private int handleRead(int fd, int buffer, int size){
+        if(fd != 0 || buffer < 0 || size < 0) 
+            return -1;
+        byte[] buff = new byte[size];
+        stdIn.read(buff, 0, buff.length);
+        writeVirtualMemory(buffer, buff);
+        return 1;
+    }
+    private int handleWrite(int fd, int buffer, int size){
+        if(fd != 1 || buffer < 0 || size < 0) 
+            return -1;
+
+        byte[] buff = new byte[size];
+        readVirtualMemory(buffer, buff);
+        stdOut.write(buff, 0, buff.length);
+        return 1;
+    }
+
     private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2, syscallJoin = 3, syscallCreate = 4,
             syscallOpen = 5, syscallRead = 6, syscallWrite = 7, syscallClose = 8, syscallUnlink = 9;
 
@@ -404,21 +426,11 @@ public class UserProcess {
         switch (syscall) {
             case syscallHalt:
                 return handleHalt();
-            case syscallWrite: {
-                OpenFile openFile = UserKernel.console.openForWriting();
-                byte[] buff = new byte[a2];
-                readVirtualMemory(a1, buff);
-                openFile.write(buff, 0, buff.length);
-            }
+            case syscallWrite: 
+                handleWrite(a0, a1, a2);
                 break;
-            case syscallRead: {
-                // System.out.println(a0 + " - " + a1 + " " + a2 + " HI");
-                OpenFile openFile = UserKernel.console.openForReading();
-                byte[] buff = new byte[a2];
-                openFile.read(buff, 0, buff.length);
-                // System.out.println(buff[0]);
-                writeVirtualMemory(a1, buff);
-            }
+            case syscallRead: 
+                handleRead(a0, a1, a2);
                 break;
             default:
                 Lib.debug(dbgProcess, "Unknown syscall " + syscall);
