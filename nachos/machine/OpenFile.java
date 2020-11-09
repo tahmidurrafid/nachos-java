@@ -16,8 +16,8 @@ public class OpenFile {
      * @param	name		the name of the file, on that file system.
      */
     public OpenFile(FileSystem fileSystem, String name) {
-	this.fileSystem = fileSystem;
-	this.name = name;
+        this.fileSystem = fileSystem;
+        this.name = name;
     }
 
     /**
@@ -25,7 +25,7 @@ public class OpenFile {
      * file system.
      */
     public OpenFile() {
-	this(null, "unnamed");
+    	this(null, "unnamed");
     }
 
     /**
@@ -34,7 +34,7 @@ public class OpenFile {
      * @return	the file system to which this file belongs.
      */
     public FileSystem getFileSystem() {
-	return fileSystem;
+    	return fileSystem;
     }
     
     /**

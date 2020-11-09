@@ -15,15 +15,15 @@ public class SynchConsole {
      * @param	console	the underlying serial console to use.
      */
     public SynchConsole(SerialConsole console) {
-	this.console = console;
-	
-	Runnable receiveHandler = new Runnable() {
-	    public void run() { receiveInterrupt(); }
-	};
-	Runnable sendHandler = new Runnable() {
-	    public void run() { sendInterrupt(); }
-	};
-	console.setInterruptHandlers(receiveHandler, sendHandler);
+		this.console = console;
+		
+		Runnable receiveHandler = new Runnable() {
+			public void run() { receiveInterrupt(); }
+		};
+		Runnable sendHandler = new Runnable() {
+			public void run() { sendInterrupt(); }
+		};
+		console.setInterruptHandlers(receiveHandler, sendHandler);
     }
 
     /**
@@ -77,10 +77,10 @@ public class SynchConsole {
      * @param	value	the byte to be sent (the upper 24 bits are ignored).
      */
     public void writeByte(int value) {
-	writeLock.acquire();
-	console.writeByte(value);
-	writeWait.P();
-	writeLock.release();
+		writeLock.acquire();
+		console.writeByte(value);
+		writeWait.P();
+		writeLock.release();
     }
 
     /**
@@ -89,7 +89,7 @@ public class SynchConsole {
      * @return	a file that can write this console.
      */
     public OpenFile openForWriting() {
-	return new File(false, true);
+		return new File(false, true);
     }
 
     private void sendInterrupt() {
@@ -118,15 +118,15 @@ public class SynchConsole {
 
 	public int read(byte[] buf, int offset, int length) {
 	    if (!canRead)
-		return 0;
+			return 0;
 
 	    int i;
 	    for (i=0; i<length; i++) {
-		int value = SynchConsole.this.readByte(false);
-		if (value == -1)
-		    break;
-		
-		buf[offset+i] = (byte) value;
+			int value = SynchConsole.this.readByte(false);
+			if (value == -1)
+				break;
+			
+			buf[offset+i] = (byte) value;
 	    }
 
 	    return i;
@@ -137,7 +137,7 @@ public class SynchConsole {
 		return 0;
 	    
 	    for (int i=0; i<length; i++)
-		SynchConsole.this.writeByte(buf[offset+i]);
+			SynchConsole.this.writeByte(buf[offset+i]);
 	    
 	    return length;
 	}
