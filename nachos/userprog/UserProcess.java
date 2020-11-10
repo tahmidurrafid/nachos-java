@@ -5,6 +5,9 @@ import nachos.threads.*;
 import nachos.userprog.*;
 
 import java.io.EOFException;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Queue;
 
 /**
  * Encapsulates the state of a user process that is not contained in its user
@@ -23,6 +26,8 @@ public class UserProcess {
      * Allocate a new process.
      */
     OpenFile stdIn, stdOut;
+    private static int processCount = 0;
+    private int processID = 0;
 
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
@@ -136,9 +141,20 @@ public class UserProcess {
         if (vaddr < 0 || vaddr >= memory.length)
             return 0;
 
-        int amount = Math.min(length, memory.length - vaddr);
-        System.arraycopy(memory, vaddr, data, offset, amount);
-
+        int amount = 0;
+        // int amount = Math.min(length, memory.length - vaddr);
+        // System.arraycopy(memory, vaddr, data, offset, amount);
+        for(int i = 0; i < length && i+offset < data.length ;i++){
+            int address = vaddr + i;
+            int vPageNo = (address)/pageSize;
+            if(vPageNo >= numPages) break;
+            int pageOffset = address%pageSize;
+            int pPageNo = pageTable[vPageNo].ppn;
+            address = pPageNo*pageSize + pageOffset;
+            if(address >= memory.length) break;
+            data[i+offset] = memory[address];
+            amount++;
+        }
         return amount;
     }
 
@@ -176,9 +192,17 @@ public class UserProcess {
         if (vaddr < 0 || vaddr >= memory.length)
             return 0;
 
-        int amount = Math.min(length, memory.length - vaddr);
-        System.arraycopy(data, offset, memory, vaddr, amount);
-
+        int amount = 0;
+        // int amount = Math.min(length, memory.length - vaddr);
+        // System.arraycopy(data, offset, memory, vaddr, amount);
+        for(int i = 0; i < length ;i++){
+            int address = vaddr + i;
+            int vPageNo = (address)/pageSize;
+            int pageOffset = address%pageSize;
+            int pPageNo = pageTable[vPageNo].ppn;
+            memory[pPageNo*pageSize + pageOffset] = data[i+offset];
+            amount++;
+        }
         return amount;
     }
 
@@ -281,11 +305,16 @@ public class UserProcess {
             Lib.debug(dbgProcess, "\tinsufficient physical memory");
             return false;
         }
-
+        LinkedList<Integer> pageList = new LinkedList<>();
+        for(int i = 0; i < numPages; i++){
+            pageList.add(UserKernel.availablePages.getFirst());
+            pageTable[i].ppn = UserKernel.availablePages.getFirst();            
+            UserKernel.availablePages.removeFirst();
+        }
+        // System.out.println(pageList.size() + ": ");
         // load sections
         for (int s = 0; s < coff.getNumSections(); s++) {
             CoffSection section = coff.getSection(s);
-
             Lib.debug(dbgProcess,
                     "\tinitializing " + section.getName() + " section (" + section.getLength() + " pages)");
 
@@ -293,10 +322,13 @@ public class UserProcess {
                 int vpn = section.getFirstVPN() + i;
 
                 // for now, just assume virtual addresses=physical addresses
-                section.loadPage(i, vpn);
+                // section.loadPage(i, vpn);
+                section.loadPage(i, pageList.getFirst());
+                // System.out.print(pageList.getFirst() + " ");
+                pageList.removeFirst();
             }
         }
-
+        // System.out.println();
         return true;
     }
 
@@ -355,6 +387,17 @@ public class UserProcess {
         byte[] buff = new byte[size];
         readVirtualMemory(buffer, buff);
         stdOut.write(buff, 0, buff.length);
+        return 1;
+    }
+
+    private int handleExec(int nameLocation, int argc, int argv){
+        String filename = readVirtualMemoryString(nameLocation, 100);
+        System.out.println(filename);
+        UserProcess process = UserProcess.newUserProcess();
+        UserProcess.processCount++;                
+        process.processID = UserProcess.processCount;
+        String []str = new String[0];
+        process.execute(filename, str);
         return 1;
     }
 
@@ -423,15 +466,18 @@ public class UserProcess {
      * @return the value to be returned to the user.
      */
     public int handleSyscall(int syscall, int a0, int a1, int a2, int a3) {
+        // System.out.println("Call :" + syscall + "; Process " + processID);
         switch (syscall) {
             case syscallHalt:
                 return handleHalt();
             case syscallWrite: 
-                handleWrite(a0, a1, a2);
-                break;
+                return handleWrite(a0, a1, a2);
             case syscallRead: 
-                handleRead(a0, a1, a2);
-                break;
+                return handleRead(a0, a1, a2);
+            case syscallExec:
+                return handleExec(a0, a1, a2);
+            case syscallExit:
+                return 1;
             default:
                 Lib.debug(dbgProcess, "Unknown syscall " + syscall);
                 Lib.assertNotReached("Unknown system call!");
@@ -477,7 +523,6 @@ public class UserProcess {
 
     private int initialPC, initialSP;
     private int argc, argv;
-
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
 }
