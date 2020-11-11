@@ -16,8 +16,12 @@ int main()
         // read(0, &ch, 1);
         // printf("%c", ch);        
     }
+    readline(s, 100);
+    printf("%s==\n", s);
+    // ch = getchar();
+    // printf("%c ", ch);
     // printf("%s", s);
-    printf("The value calculated is %d\n", sum);
+    // printf("The value calculated is %d\n", sum);
     id = exec("child.coff", 0, args);
     join(id, status);
     // for(i = 0; i < 1000000; i++){

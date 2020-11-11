@@ -26,8 +26,8 @@ public class UserProcess {
      * Allocate a new process.
      */
     OpenFile stdIn, stdOut;
-    private static int processCount = 0;
-    private int processID = 0;
+    private static int processCount = 1;
+    private int processID = 1;
     public UThread uThread;
     public ArrayList<UserProcess> childs;
 
@@ -35,7 +35,7 @@ public class UserProcess {
         int numPhysPages = Machine.processor().getNumPhysPages();
         pageTable = new TranslationEntry[numPhysPages];
         for (int i = 0; i < numPhysPages; i++)
-            pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+            pageTable[i] = new TranslationEntry(i, -1, true, false, false, false);
         stdIn = UserKernel.console.openForReading();
         stdOut = UserKernel.console.openForWriting();
         childs = new ArrayList<>();        
@@ -198,16 +198,18 @@ public class UserProcess {
         int amount = 0;
         // int amount = Math.min(length, memory.length - vaddr);
         // System.arraycopy(data, offset, memory, vaddr, amount);
-        for(int i = 0; i < length ;i++){
+        for(int i = 0; i < length && i+offset < data.length ;i++){
             int address = vaddr + i;
             int vPageNo = (address)/pageSize;
+            if(vPageNo >= numPages) break;
             int pageOffset = address%pageSize;
             int pPageNo = pageTable[vPageNo].ppn;
-            memory[pPageNo*pageSize + pageOffset] = data[i+offset];
+            address = pPageNo*pageSize + pageOffset;
+            if(address >= memory.length) break;
+            memory[address] = data[i+offset];
             amount++;
         }
-        return amount;
-    }
+        return amount;    }
 
     /**
      * Load the executable with the specified name into this process, and prepare to
@@ -302,20 +304,33 @@ public class UserProcess {
      *
      * @return <tt>true</tt> if the sections were successfully loaded.
      */
+
+    synchronized int managePages(Boolean alloc){
+        if(alloc){
+            if(UserKernel.availablePages.size() < numPages) 
+                return 0;
+            for(int i = 0; i < numPages; i++){
+                pageTable[i].ppn = UserKernel.availablePages.getFirst();            
+                UserKernel.availablePages.removeFirst();
+            }
+        }else{
+            for(int i = 0; i < numPages && pageTable[i].ppn != -1; i++){
+                UserKernel.availablePages.add(pageTable[i].ppn);
+            }
+        }
+        return 1;
+    }
+
     protected boolean loadSections() {
-        if (numPages > Machine.processor().getNumPhysPages()) {
+        int pageManaged = managePages(true);
+        if (numPages > Machine.processor().getNumPhysPages() || pageManaged == 0) {
             coff.close();
             Lib.debug(dbgProcess, "\tinsufficient physical memory");
             return false;
         }
-        LinkedList<Integer> pageList = new LinkedList<>();
-        for(int i = 0; i < numPages; i++){
-            pageList.add(UserKernel.availablePages.getFirst());
-            pageTable[i].ppn = UserKernel.availablePages.getFirst();            
-            UserKernel.availablePages.removeFirst();
-        }
         // System.out.println(pageList.size() + ": ");
         // load sections
+        int index = 0;
         for (int s = 0; s < coff.getNumSections(); s++) {
             CoffSection section = coff.getSection(s);
             Lib.debug(dbgProcess,
@@ -326,12 +341,13 @@ public class UserProcess {
 
                 // for now, just assume virtual addresses=physical addresses
                 // section.loadPage(i, vpn);
-                section.loadPage(i, pageList.getFirst());
-                // System.out.print(pageList.getFirst() + " ");
-                pageList.removeFirst();
+                section.loadPage(i, pageTable[index].ppn);
+                if(section.isReadOnly()){
+                    pageTable[index].readOnly = true;
+                }
+                index++;
             }
         }
-        // System.out.println();
         return true;
     }
 
@@ -339,6 +355,7 @@ public class UserProcess {
      * Release any resources allocated by <tt>loadSections()</tt>.
      */
     protected void unloadSections() {
+        managePages(false);
     }
 
     /**
@@ -368,29 +385,34 @@ public class UserProcess {
      * Handle the halt() system call.
      */
     private int handleHalt() {
-
+        if(processID != 1){
+            return -1;
+        }
         Machine.halt();
-
         Lib.assertNotReached("Machine.halt() did not halt machine!");
-        return 0;
+        return 1;
     }
 
     private int handleRead(int fd, int buffer, int size){
-        if(fd != 0 || buffer < 0 || size < 0) 
+        if(fd != 0 || buffer < 0 || size < 0 || size >= numPages*pageSize) 
             return -1;
         byte[] buff = new byte[size];
-        stdIn.read(buff, 0, buff.length);
+        int amount = stdIn.read(buff, 0, buff.length);
+        if(amount < 1){
+            return amount;
+        }
         writeVirtualMemory(buffer, buff);
-        return 1;
+        return amount;
     }
+
     private int handleWrite(int fd, int buffer, int size){
-        if(fd != 1 || buffer < 0 || size < 0) 
+        if(fd != 1 || buffer < 0 || size < 0 || size >= pageSize*numPages) 
             return -1;
 
         byte[] buff = new byte[size];
-        readVirtualMemory(buffer, buff);
-        stdOut.write(buff, 0, buff.length);
-        return 1;
+        int amount = readVirtualMemory(buffer, buff);
+        stdOut.write(buff, 0, amount);
+        return amount;
     }
 
     private int handleExec(int nameLocation, int argc, int argv){
@@ -422,6 +444,7 @@ public class UserProcess {
 
     private int handleExit(int status){
         uThread.finish();
+        unloadSections();
         return 1;
     }
 

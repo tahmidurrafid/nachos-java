@@ -4,6 +4,6 @@ int main()
 {
     printf("Hi\n");
     printf("Rhythm is just testing the system\n");
-    // halt();
+    halt();
     /* not reached */
 }
