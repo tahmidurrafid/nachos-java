@@ -28,6 +28,8 @@ public class UserProcess {
     OpenFile stdIn, stdOut;
     private static int processCount = 0;
     private int processID = 0;
+    public UThread uThread;
+    public ArrayList<UserProcess> childs;
 
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
@@ -36,6 +38,7 @@ public class UserProcess {
             pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
         stdIn = UserKernel.console.openForReading();
         stdOut = UserKernel.console.openForWriting();
+        childs = new ArrayList<>();        
     }
 
     /**
@@ -60,8 +63,8 @@ public class UserProcess {
         if (!load(name, args))
             return false;
 
-        new UThread(this).setName(name).fork();
-
+        uThread = new UThread(this);
+        uThread.setName(name).fork();
         return true;
     }
 
@@ -394,10 +397,31 @@ public class UserProcess {
         String filename = readVirtualMemoryString(nameLocation, 100);
         System.out.println(filename);
         UserProcess process = UserProcess.newUserProcess();
-        UserProcess.processCount++;                
+        UserProcess.processCount++;
         process.processID = UserProcess.processCount;
+        childs.add(process);
         String []str = new String[0];
         process.execute(filename, str);
+        return process.processID;
+    }
+
+    private int handleJoin(int id, int status){
+        UserProcess foundProcess = null;
+        for(UserProcess process: childs){
+            if(process.processID == id){
+                foundProcess = process;
+            }
+        }
+        if(foundProcess == null){
+            return 0;
+        }
+        foundProcess.uThread.join();
+
+        return 1;
+    }
+
+    private int handleExit(int status){
+        uThread.finish();
         return 1;
     }
 
@@ -472,12 +496,14 @@ public class UserProcess {
                 return handleHalt();
             case syscallWrite: 
                 return handleWrite(a0, a1, a2);
-            case syscallRead: 
+            case syscallRead:
                 return handleRead(a0, a1, a2);
             case syscallExec:
                 return handleExec(a0, a1, a2);
             case syscallExit:
-                return 1;
+                return handleExit(a0);
+            case syscallJoin:
+                return handleJoin(a0, a1);
             default:
                 Lib.debug(dbgProcess, "Unknown syscall " + syscall);
                 Lib.assertNotReached("Unknown system call!");
