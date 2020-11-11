@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import jdk.jfr.Unsigned;
+
 /**
  * Encapsulates the state of a user process that is not contained in its user
  * thread (or threads). This includes its address translation state, a file
@@ -30,6 +32,7 @@ public class UserProcess {
     private int processID = 1;
     public UThread uThread;
     public ArrayList<UserProcess> childs;
+    UserProcess parent = null;
 
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
@@ -209,7 +212,8 @@ public class UserProcess {
             memory[address] = data[i+offset];
             amount++;
         }
-        return amount;    }
+        return amount;    
+    }
 
     /**
      * Load the executable with the specified name into this process, and prepare to
@@ -415,14 +419,26 @@ public class UserProcess {
         return amount;
     }
 
-    private int handleExec(int nameLocation, int argc, int argv){
+    private int handleExec(int nameLocation, int argc, int argvAdd){
         String filename = readVirtualMemoryString(nameLocation, 100);
-        System.out.println(filename);
         UserProcess process = UserProcess.newUserProcess();
         UserProcess.processCount++;
         process.processID = UserProcess.processCount;
         childs.add(process);
-        String []str = new String[0];
+        process.parent = this;
+        String []str = new String[argc];
+        for(int i = 0; i < argc; i++){
+            byte data[] = new byte[4];
+            int add = readVirtualMemory(argvAdd, data);
+            int val = 0;
+            int multi = 1;
+            for(int j = 0; j < 4; j++){
+                val += (data[j] & 0xFF)*multi;
+                multi = multi*256;
+            }
+            String s = readVirtualMemoryString(val, 100);
+            str[i] = s;
+        }
         process.execute(filename, str);
         return process.processID;
     }
@@ -435,16 +451,21 @@ public class UserProcess {
             }
         }
         if(foundProcess == null){
+            System.out.println("Join can not be called on finished process");
             return 0;
         }
         foundProcess.uThread.join();
-
         return 1;
     }
 
     private int handleExit(int status){
-        uThread.finish();
+        stdIn.close();
+        stdOut.close();
         unloadSections();
+        if(parent != null){
+            parent.childs.remove(this);
+        }
+        uThread.finish();        
         return 1;
     }
 

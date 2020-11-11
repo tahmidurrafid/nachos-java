@@ -6,29 +6,22 @@
 int main()
 {
     char s[100];
-    char ch;
-    int sum = 0, i = 0;
-    char **args;
-    int id;
-    int *status;
-    for(i = 0; i < 10; i++){
-        sum += i;
-        // read(0, &ch, 1);
-        // printf("%c", ch);        
-    }
+    char* argp[]= {"2"};
+    int i, n, j, id, *status;
+    printf("Please input an integer: ");
     readline(s, 100);
-    printf("%s==\n", s);
-    // ch = getchar();
-    // printf("%c ", ch);
-    // printf("%s", s);
-    // printf("The value calculated is %d\n", sum);
-    id = exec("child.coff", 0, args);
+    n = atoi(s);
+    for(i = 0; i < n; i++){
+        for(j = 0; j <= i; j++){
+            printf("*");
+        }
+        printf("\n");
+    }
+    id = exec("child.coff", 1, argp);
     join(id, status);
-    // for(i = 0; i < 1000000; i++){
-    //     sum += i;
-    // }
-    printf("ekhon jhamela hoar kotha na %d\n", sum);
+    join(id, status);    
+    join(id, status);    
+    join(id, status);    
+    printf("Child task has been ended\n");
     halt();
-    // return 0;
-    /* not reached */
 }

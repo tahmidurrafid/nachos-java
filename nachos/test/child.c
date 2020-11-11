@@ -2,8 +2,6 @@
 
 int main()
 {
-    printf("Hi\n");
-    printf("Rhythm is just testing the system\n");
-    halt();
+    printf("I am a child process\n");
     /* not reached */
 }
