@@ -30,8 +30,10 @@ public class UserProcess {
     OpenFile stdIn, stdOut;
     private static int processCount = 1;
     private int processID = 1;
+    public static int activeProcess = 1;
     public UThread uThread;
     public ArrayList<UserProcess> childs;
+    public int status = 1;
     UserProcess parent = null;
 
     public UserProcess() {
@@ -399,7 +401,7 @@ public class UserProcess {
 
     private int handleRead(int fd, int buffer, int size){
         if(fd != 0 || buffer < 0 || size < 0 || size >= numPages*pageSize) 
-            return -1;
+            return 0;
         byte[] buff = new byte[size];
         int amount = stdIn.read(buff, 0, buff.length);
         if(amount < 1){
@@ -411,7 +413,7 @@ public class UserProcess {
 
     private int handleWrite(int fd, int buffer, int size){
         if(fd != 1 || buffer < 0 || size < 0 || size >= pageSize*numPages) 
-            return -1;
+            return 0;
 
         byte[] buff = new byte[size];
         int amount = readVirtualMemory(buffer, buff);
@@ -439,7 +441,9 @@ public class UserProcess {
             String s = readVirtualMemoryString(val, 100);
             str[i] = s;
         }
-        process.execute(filename, str);
+        if(process.execute(filename, str)){
+            activeProcess++;
+        }
         return process.processID;
     }
 
@@ -450,11 +454,15 @@ public class UserProcess {
                 foundProcess = process;
             }
         }
+        byte [] mem = new byte[4];
         if(foundProcess == null){
-            System.out.println("Join can not be called on invalid process");
-            return 0;
+            mem[0] = (byte)2;
+            int amount = writeVirtualMemory(status, mem);
+            return -1;
         }
         foundProcess.uThread.join();
+        mem[0] = (byte)foundProcess.status;
+        writeVirtualMemory(status, mem);
         return 1;
     }
 
@@ -464,6 +472,11 @@ public class UserProcess {
         unloadSections();
         if(parent != null){
             parent.childs.remove(this);
+        }
+        this.status = status;
+        activeProcess--;        
+        if(activeProcess == 0){
+            Kernel.kernel.terminate();            
         }
         UThread.finish();
         return 1;
