@@ -429,7 +429,7 @@ public class UserProcess {
         String []str = new String[argc];
         for(int i = 0; i < argc; i++){
             byte data[] = new byte[4];
-            int add = readVirtualMemory(argvAdd, data);
+            int add = readVirtualMemory(argvAdd + i*4, data);
             int val = 0;
             int multi = 1;
             for(int j = 0; j < 4; j++){
@@ -451,7 +451,7 @@ public class UserProcess {
             }
         }
         if(foundProcess == null){
-            System.out.println("Join can not be called on finished process");
+            System.out.println("Join can not be called on invalid process");
             return 0;
         }
         foundProcess.uThread.join();
@@ -465,7 +465,7 @@ public class UserProcess {
         if(parent != null){
             parent.childs.remove(this);
         }
-        uThread.finish();        
+        UThread.finish();
         return 1;
     }
 

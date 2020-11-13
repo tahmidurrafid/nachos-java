@@ -6,7 +6,10 @@
 int main()
 {
     char s[100];
-    char* argp[]= {"2"};
+    char* argp[]= {"Rhythm"};
+    argp[0] = "test_args_status";
+    argp[1] = "whatever";
+    argp[2] = "wtf!";    
     int i, n, j, id, *status;
     printf("Please input an integer: ");
     readline(s, 100);
@@ -17,11 +20,8 @@ int main()
         }
         printf("\n");
     }
-    id = exec("child.coff", 1, argp);
+    id = exec("child.coff", 3, argp);
     join(id, status);
-    join(id, status);    
-    join(id, status);    
-    join(id, status);    
     printf("Child task has been ended\n");
     halt();
 }
